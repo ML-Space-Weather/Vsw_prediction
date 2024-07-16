@@ -1,3 +1,5 @@
 Figs/
 __pycache__
 *train.py
+display*
+checkpoints/
