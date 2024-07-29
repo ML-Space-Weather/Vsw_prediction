@@ -7,7 +7,9 @@ import numpy as np
 import torch
 from wandb_funs import V2logV_all, GONG_read_all
 from wandb_funs import V_train_pred, plot_vr5days_update
+from wandb_funs import data_split
 
+from ipdb import set_trace as st
 ################################## configuration #######################
 
 torch.set_float32_matmul_precision('medium')
@@ -43,12 +45,17 @@ def run(config):
         HC_lon_5days = np.array(f['HC_lon_5days'][:N_sample])
         images = np.array(f['GONG'][:N_sample])
         date_clu = np.array(f['Time'][:N_sample])
+        # import ipdb; ipdb.set_trace()
         f.close()
 
     ############## devide train/test set  
     idx_clu = np.arange(date_clu.shape[0])
+    idx_train, idx_valid, idx_test = data_split(date_clu, idx_clu, 2023)
 
-    ############## calculate vr_5days  
+    # st()
+
+    ############## calculate vdate_clu
+    # r_5days  
 
     if (os.path.exists(vr_mat)==0) | (Overwrite):
 
@@ -112,17 +119,22 @@ def run(config):
     vr_5days_pred = np.array(vr_5days[:, :, -1])
     vr_5days_pred[:, :24] = pred_Y_test[:, :24]
 
+    # import ipdb; ipdb.set_trace()
     ############## save all variables into a .h5 file and predictions ########
     with h5py.File(save_h5, 'w') as f:
         f.create_dataset("HC_lon_5days", data=HC_lon_5days)
         f.create_dataset("HC_lon_now", data=HC_lon_now)
+        f.create_dataset("Time", data=date_clu)
         f.create_dataset("r", data=r_end)
         f.create_dataset("r_5days", data=r_end_5day)
         f.create_dataset("vr", data=vr)
         f.create_dataset("vr_5days", data=vr_5days)
         f.create_dataset("vr_5days_train_final", data=vr_5days_pred)
+        f.create_dataset("train_idx", data=idx_train)
+        f.create_dataset("test_idx", data=idx_test)
         f.close()
 
+    # st()
     ############## plot and save figures 
 
     for i in np.arange(X.shape[0])[::gap]:
@@ -140,7 +152,7 @@ def run(config):
 
 sweep_config = {
     'IC': 10,
-    'N_sample': 1000,
+    'N_sample': 100000,
     'width': 3,
     'mode': 3,
     'gap': 100,

@@ -18,6 +18,31 @@ font = {'family' : 'serif',
 
 rc('font', **font)
 
+
+
+def data_split(date_ACE, idx_clu, test_year):
+
+    # st()
+    idx_test = np.where((date_ACE[idx_clu, 0] >= test_year))[0]
+    # idx_test = np.where((date_ACE[idx_clu, 0] == 2015))[0]
+    # idx_test = np.where((date_ACE[idx_clu, 0] == 2015) & (date_ACE[idx_clu, 1] >= 10))[0]
+    idx_valid = np.where((date_ACE[idx_clu, 0] == test_year-2) | (date_ACE[idx_clu, 0] == test_year-1))[0]
+    # idx_valid = np.where((date_ACE[idx_clu, 0] == 2014) | (date_ACE[idx_clu, 0] == 2016))[0]
+    # idx_valid = np.where((date_ACE[idx_clu, 0] == 2015) & (date_ACE[idx_clu, 1] < 8))[0]
+    # st()
+    idx_train = np.arange(len(idx_clu))
+    idx_train = list(idx_train)
+    for idx in idx_test:
+        idx_train.remove(idx)
+    for idx in idx_valid:
+        idx_train.remove(idx)
+
+    idx_train = np.asarray(idx_train)
+    idx_valid = np.asarray(idx_valid)
+    idx_test = np.asarray(idx_test)
+
+    return idx_train, idx_valid, idx_test
+
 def V2logV_all(vr, vr_5days, 
            r_end, r_end_5day, 
            IC, idx_clu, 
