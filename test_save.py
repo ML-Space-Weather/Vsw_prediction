@@ -11,6 +11,8 @@ from tqdm import tqdm
 import datetime as dt
 import os
 from random import shuffle
+from scipy.io import savemat
+from wandb_funs_train import *
 
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -20,7 +22,7 @@ from ipdb import set_trace as st
 import warnings
 warnings.filterwarnings('ignore')
 
-N_sample = 100000 # all:85455l
+N_sample = 101000 # all:85455l
 # N_sample = 85455 # all:85455
 train_divide = 5/4
 mode_max=4
@@ -29,9 +31,21 @@ IC = 10
 # save_mat = "/media/faraday/andong/GONG_NN/RK4_MF_5days_"+str(IC)+'_'+str(mode_max)+'_'+str(N_sample)+".mat"
 # save_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'_best.h5'
 # save_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_init_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
-load_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
-save_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'_test.h5'
-# save_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_'+str(int(IC))+'_'+str(int(N_sample))+'.mat'
+load_mat = '/media/faraday/andong/GONG_NN/long_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
+# load_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
+# save_mat = '/media/faraday/andong/GONG_NN/RK4_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'_test.h5'
+save_mat = '/media/faraday/andong/GONG_NN/long_MF_5days_'+str(int(IC))+'_'+str(int(N_sample))+'.mat'
+
+Inter_data = '/media/faraday/andong/Dataspace/GONG_NN/Data/new_long_data.h5' # This where GONG data will be downloaded
+
+# init_data = ML_data_read(Inter_data, 
+#                             N_sample,
+#                             False)
+
+# vr, vr_5days, r_end_5day, r_end, images, date_clu = init_data
+# vr = vr.T
+# vr_5days = vr_5days.T
+
 # print(save_mat)
 # st()
 # save_mat = "/media/faraday/andong/GONG_NN/RK4_MF_5days_"+str(N_sample)+"_origin.mat"
@@ -45,16 +59,36 @@ with h5py.File(load_mat, 'r') as f:
     f.close()
 
 # st()
-with h5py.File(save_mat, 'w') as f:
-    f.create_dataset('Time', data=date[test_idx])
-    f.create_dataset('vr', data=vr[test_idx, :24, -1][:, ::-1])
-    f.create_dataset('vr_5days', data=vr_5days[test_idx, :24, -1][:, ::-1])
-    f.create_dataset('vr_5days_pred', data=vr_5days_test_final[:24, test_idx][::-1].T)
-    f.close()
+# with h5py.File(save_mat, 'w') as f:
+#     f.create_dataset('Time', data=date[test_idx])
+#     f.create_dataset('vr', data=vr[test_idx, :120][:, ::-1])
+#     f.create_dataset('vr_5days', data=vr_5days[test_idx, :120][:, ::-1])
+#     f.create_dataset('vr_5days_pred', data=vr_5days_test_final[:120, test_idx][::-1].T)
+#     f.close()
+
+# Prepare data in a dictionary format for MATLAB
+# data_to_save = {
+#     'Time': date[test_idx],
+#     'vr': vr[test_idx, :120][:, ::-1],
+#     'vr_5days': vr_5days[test_idx, :120][:, ::-1],
+#     'vr_5days_pred': vr_5days_test_final[:120, test_idx][::-1].T
+# }
+
+data_to_save = {
+    'Time': date[test_idx],
+    'vr': vr[test_idx, :121][::-1],
+    'vr_5days': vr_5days[test_idx, :121][::-1],
+    'vr_5days_pred': vr_5days_test_final[:121, test_idx][::-1].T
+}
+
+# Save the dictionary as a .mat file
+savemat(save_mat, data_to_save)
+    
+st()
 
 ############################## sub-RMSE (test) ###########################
 
-Vr_clu = np.arange(200, 800, 20)
+Vr_clu = np.arange(200, 700, 20)
 figname = 'Figs/exm/RMSE_test.png'
 
 
@@ -70,14 +104,14 @@ num = np.zeros([len(Vr_clu), len(test_idx)])
 for ii, i in enumerate(test_idx):
 
     # st()
-    error = vr_5days_test_final[:24, i] - vr_5days[i, :24, -1].T
-    error_v0 = vr[i, :24, -1] - vr_5days[i, :24, -1].T
+    error = vr_5days_test_final[:120, i] - vr_5days[i, :120].T
+    error_v0 = vr[i, :120] - vr_5days[i, :120].T
 
     for n, Vr_thr in enumerate(Vr_clu):
 
         # st()
 
-        idx_t = np.where(vr_5days[i, :24, -1]>Vr_thr)[0]
+        idx_t = np.where(vr_5days[i, :120]>Vr_thr)[0]
         
         num[n, ii] = len(idx_t)
         SE[n, ii] = np.sqrt(np.nanmean(error[idx_t]**2))
@@ -98,8 +132,7 @@ print('RMSE of prediction & Vr is {} & {}'.format(
 
 fig, ax = plt.subplots(figsize=(8, 8))
 ax.plot(Vr_clu, np.nanmean(SE,axis=1), 'kx-', label='Proposed method')
-ax.plot(Vr_clu, np.nanmean(SE_Per
-,axis=1), 'ro-', label='Persistence')
+ax.plot(Vr_clu, np.nanmean(SE_Per,axis=1), 'ro-', label='Persistence')
 
 ax.set_xlabel('Vr(km/s)')
 ax.set_ylabel('RMSE(km/s)')
