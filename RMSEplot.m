@@ -2,7 +2,9 @@ clear
 clc
 close all
 
+% load 'Results/long_MF_5days_10_101000.mat';
 load '../long_MF_5days_10_101000.mat';
+
 % load '../long_MF_5days_10_10100_sigmoid.mat';
 
 num = 121;
@@ -34,5 +36,5 @@ legend('Correlation', 'Location', 'northeast');
 hold off;
 
 % Save the plot as a .fig and .png
-savefig('RMSE_and_Correlation.fig');
-saveas(gcf, 'RMSE_and_Correlation.png');
+savefig('Figs/RMSE_and_Correlation.fig');
+saveas(gcf, 'Figs/RMSE_and_Correlation.png');
