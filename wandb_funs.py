@@ -9,8 +9,12 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 import matplotlib.dates as mdates
 
+from torch.utils.data import Dataset
+
 import lightning.pytorch as lp
 from Model import V_FNO_DDP
+from ipdb import set_trace as st
+# from wandb_funs_train import GONG_Dataset 
 
 font = {'family' : 'serif',
         'weight' : 'bold',
@@ -19,6 +23,19 @@ font = {'family' : 'serif',
 rc('font', **font)
 
 
+class GONG_Dataset(Dataset):
+    def __init__(self, X, Y):
+        self.X = X
+        self.Y = Y
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        x_sample = self.X[idx]
+        y_sample = self.Y[idx]
+        return x_sample, y_sample
+    
 
 def data_split(date_ACE, idx_clu, test_year):
 
@@ -130,8 +147,8 @@ class GONG_Model(lp.LightningModule):
                  lr,
                  weight_decay,
                  loss_func,
-                 vr_mean,
-                 vr_std,
+                #  vr_mean,
+                #  vr_std,
                  dropout,
                  width,
                  mode,
@@ -143,8 +160,8 @@ class GONG_Model(lp.LightningModule):
         self.model = V_FNO_DDP(dropout,
                   width,
                   mode,
-                  vr_mean,
-                  vr_std,
+                #   vr_mean,
+                #   vr_std,
                   hidden_size=16,
                   num_layers=2,
                   outputs=128,
@@ -153,8 +170,8 @@ class GONG_Model(lp.LightningModule):
         self.momentum = 0.3
         self.weight_decay = weight_decay
         self.loss_func = loss_func
-        self.vr_mean = vr_mean
-        self.vr_std = vr_std
+        # self.vr_mean = vr_mean
+        # self.vr_std = vr_std
         self.IC = IC
 
     def forward(self, x):
@@ -164,8 +181,8 @@ class GONG_Model(lp.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_func(y_hat, y,
-                              self.vr_mean,
-                              self.vr_std, 
+                            #   self.vr_mean,
+                            #   self.vr_std, 
                               self.IC,
                               2,
                               True,
@@ -183,8 +200,8 @@ class GONG_Model(lp.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_func(y_hat, y,
-                              self.vr_mean,
-                              self.vr_std,
+                            #   self.vr_mean,
+                            #   self.vr_std,
                               self.IC,
                               2,
                               True
@@ -196,8 +213,8 @@ class GONG_Model(lp.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss_func(y_hat, y,
-                              self.vr_mean,
-                              self.vr_std,
+                            #   self.vr_mean,
+                            #   self.vr_std,
                               self.IC,
                               2,
                               weight_flag=True
@@ -348,14 +365,44 @@ def apply_rk42log_f_model(r_initial, dr_vec, dp_vec, r0=30 * 695700, alpha=0.15,
     return v
 
 
-def V_train_pred(X, Y, iter, checkpoint_dir, checkpoint_file):
+def V_train_pred(X, Y, iter, config, checkpoint_dir, checkpoint_file):
 
     V_checkpoint_name = checkpoint_dir+'/'+checkpoint_file+'_'+str(iter)+'_V.ckpt'    
     X, Y = torch.from_numpy(X).float(), torch.from_numpy(Y).float()
 
-    # import ipdb; ipdb.set_trace()
-    best_model = GONG_Model.load_from_checkpoint(V_checkpoint_name).to('cpu') #.to('cuda')
-    pred_Y_test = best_model.forward(X)
+    test_data = torch.utils.data.DataLoader(
+                    GONG_Dataset(X, Y), 
+                    # GONG_Dataset(X[idx_test], Y[idx_test]), 
+                    batch_size=X.shape[0]//1000, 
+                    num_workers=8)
+
+    best_model = GONG_Model(3e-4,
+                       4e-5,
+                       V_loss_update,
+                    #    vr_mean,
+                    #    vr_std,
+                       0.6,
+                       3,
+                       3,
+                       10,
+                       )
+    # best_model = GONG_Model.load_from_checkpoint(V_checkpoint_name).to('cuda')
+    # torch.save(best_model.state_dict(), V_checkpoint_name[:-5]+'.pt')
+    best_model.load_state_dict(torch.load(V_checkpoint_name[:-5]+'.pt'))
+
+    best_model = best_model.to('cuda')
+    best_model.eval()
+    pred_Y_test = []
+
+    with torch.no_grad():
+        for batch in tqdm(test_data):
+            st()
+            X_batch = batch[0].to('cuda')  # Assuming your model is on the 'device' (e.g., 'cuda' or 'cpu')
+            preds = best_model(X_batch).cpu()
+            pred_Y_test.append(preds)
+    pred_Y_test = torch.cat(pred_Y_test, dim=0)
+
+    # pred_Y_test = best_model.forward(X)
     return np.exp(pred_Y_test.detach().numpy())*Y[:, :, 0].numpy()
 
 
@@ -392,3 +439,29 @@ def plot_vr5days_update(date_ACE,
     fig.savefig('Figs/Vr_example_'+str(IC)+'_'+str(i)+'.jpg', dpi=300)
     plt.close()
     
+
+# @rank_zero_only
+def save_model_result(save_h5, 
+                      date_test,
+                      Y_Per,
+                      Y,
+                      y_final,
+                      dy_final,
+                      E_array,
+                      dE_array,
+                      idx_clu
+                      ):
+    
+    with h5py.File(save_h5, 'w') as f:
+        f.create_dataset("Time", data=date_test)
+        f.create_dataset("vr", data=Y_Per)
+        f.create_dataset("vr_5days", data=Y)
+        f.create_dataset("E_final", data=y_final)
+        f.create_dataset("dE_final", data=dy_final)
+        f.create_dataset("E_clu", data=E_array)
+        f.create_dataset("dE_clu", data=dE_array)
+        f.create_dataset("train_idx", data=idx_clu[0])
+        f.create_dataset("test_idx", data=idx_clu[2])
+        f.close()
+
+    return None

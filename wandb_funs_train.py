@@ -71,6 +71,71 @@ def seed_torch(seed=2333):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
+
+
+################# rk42 model (expired) #######################
+
+def apply_rk42log_f_model(r_initial, dr_vec, dp_vec, omega_rot=27.27):
+    """
+    Apply 2nd order Adams-Bashfort in r, and 2nd order central finite difference in phi 
+    upwind model to the inviscid burgers equation.
+    :return: velocity matrix dimensions (nr x np)
+    """
+    q = dr_vec[0] * omega_rot / dp_vec[0]
+    num_r, num_p = len(dr_vec) + 1, len(dp_vec) + 1
+    v = np.zeros((num_r, num_p))
+    v[0, :] = np.clip(r_initial, 150, 950)
+
+    for i in range(1, num_r):
+        vv = v[i - 1]
+        lnv = np.log(vv + 1)
+        
+        # Now using manual boundary handling
+        k1 = 0.5 * np.concatenate((lnv[1:] - lnv[:-1], [lnv[0] - lnv[-1]]))
+        k2 = np.log(vv + q * k1 / 2)
+        k2 = 0.5 * np.concatenate((k2[1:] - k2[:-1], [k2[0] - k2[-1]]))
+        
+        k3 = np.log(vv + q * k2 / 2)
+        k3 = 0.5 * np.concatenate((k3[1:] - k3[:-1], [k3[0] - k3[-1]]))
+        
+        k4 = np.log(vv + q * k3)
+        k4 = 0.5 * np.concatenate((k4[1:] - k4[:-1], [k4[0] - k4[-1]]))
+        
+        v[i] = vv + (q / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        
+    return v
+
+
+def apply_rk42log_f_model_tensor(r_initial, dr_vec, dp_vec, omega_rot=27.27):
+    """
+    Apply 2nd order Adams-Bashfort in r, and 2nd order central finite difference in phi 
+    upwind model to the inviscid burgers equation.
+    :return: velocity matrix dimensions (nr x np)
+    """
+    q = dr_vec[0] * omega_rot / dp_vec[0]
+    num_r, num_p = len(dr_vec) + 1, len(dp_vec) + 1
+    v = torch.zeros((num_r, num_p))
+    v[0, :] = torch.clip(r_initial, 150, 950)
+
+    for i in range(1, num_r):
+        vv = v[i - 1]
+        lnv = torch.log(vv + 1)
+        
+        # Now using manual boundary handling
+        k1 = 0.5 * torch.concatenate((lnv[1:] - lnv[:-1], [lnv[0] - lnv[-1]]))
+        k2 = torch.log(vv + q * k1 / 2)
+        k2 = 0.5 * torch.concatenate((k2[1:] - k2[:-1], [k2[0] - k2[-1]]))
+        
+        k3 = torch.log(vv + q * k2 / 2)
+        k3 = 0.5 * torch.concatenate((k3[1:] - k3[:-1], [k3[0] - k3[-1]]))
+        
+        k4 = torch.log(vv + q * k3)
+        k4 = 0.5 * torch.concatenate((k4[1:] - k4[:-1], [k4[0] - k4[-1]]))
+        
+        v[i] = vv + (q / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        
+    return v
+
 ################# rk42 model #######################
 
 def apply_rk42_model(v_init, dr_vec, dp_vec, 
@@ -213,7 +278,7 @@ def apply_rk42log_model(v_init, dr_vec, dp_vec,
 
     for i in range(1, len(dr_vec)+1):
 
-        vv = v[i-1]
+        vv = np.clip(v[i-1], 150, 950)
         lnv = np.log(vv+1)
         
         k1 = 0.5 * np.hstack((lnv[1] - lnv[-1], 
@@ -267,7 +332,7 @@ def apply_rk42log_model_tensor(v_init, dr_vec, dp_vec,
     for i in range(1, len(dr_vec)+1):
 
         vv = v[i-1].clone()
-        # vv = torch.clip(vv, 150, 950)
+        vv = torch.clip(vv, 150, 950)
         lnv = torch.log(vv+1)
         
         k1 = 0.5 * torch.hstack((lnv[1] - lnv[-1], 
@@ -641,14 +706,14 @@ def data_split(date_ACE, idx_clu, test_year):
 
     # st()
     # idx_test = np.where((date_ACE[idx_clu, 0] == 2018))[0]
-    idx_test = np.where((date_ACE[idx_clu, 1] == 8))[0]
+    # idx_test = np.where((date_ACE[idx_clu, 1] == 8))[0]
     # idx_test = np.where((date_ACE[idx_clu, 0] == 2015))[0]
     # idx_test = np.where((date_ACE[idx_clu, 0] == 2015) & (date_ACE[idx_clu, 1] >= 10))[0]
-    idx_valid = np.where((date_ACE[idx_clu, 1] == 9))[0]
+    # idx_valid = np.where((date_ACE[idx_clu, 1] == 9))[0]
     
     # st()
-    # idx_valid = np.where((date_ACE[idx_clu, 0] == test_year))[0]
-    # idx_valid = np.where((date_ACE[idx_clu, 0] == test_year-2) | (date_ACE[idx_clu, 0] == test_year-1))[0]
+    idx_test = np.where((date_ACE[idx_clu, 0] >= test_year))[0]
+    idx_valid = np.where((date_ACE[idx_clu, 0] == test_year-2) | (date_ACE[idx_clu, 0] == test_year-1))[0]
     # idx_valid = np.where((date_ACE[idx_clu, 0] == 2014) | (date_ACE[idx_clu, 0] == 2016))[0]
     # idx_valid = np.where((date_ACE[idx_clu, 0] == 2015) & (date_ACE[idx_clu, 1] < 8))[0]
     # st()
@@ -1173,61 +1238,74 @@ def V_loss_long(y_pred,
     yr_5days = y_true[:, :, 101:-1] # vr_5days
     event_idx = y_true[:, 0, -1]
     
+    # y_gap = y_pred[:, -120:]
+    # y_pred = y_pred[:, :-120]
+    
     # st()
 
     RMSE = torch.tensor(0).float().to(device)
     RMSE_ori = torch.tensor(0).float().to(device)
     p = torch.linspace(0, 360, 657)[:-1]
     dp_vec = (p[1:]-p[0:-1])/180*np.pi
+    n = 20
     # tmp_clu = []
     for i in range(r_end.shape[0]):
         r_vector=torch.linspace(695700*IC, r_end.cpu().detach().numpy()[i], 100) # solve the backward propagation all the way to 1 solar radius
         dr_vec = r_vector[1:] - r_vector[0:-1]
         
         # st()
-        # v_init = y_pred[i].squeeze()*vr_std/10+yr[i, :, 0].squeeze()
-        v_init = torch.exp(y_pred[i].squeeze()/5)*yr[i, :, 0].squeeze()
+        v_init = y_pred[i].squeeze()/3+yr[i, :, 0].squeeze()
+        v_init = torch.cat([v_init[n:], v_init[:n]])
+
+        # v_init = y_pred[i].squeeze()
+        # v_init = torch.exp(y_pred[i].squeeze()/10)*yr[i, :, 0].squeeze()
         # tmp = v_init
+        
+        
+        # st()
         tmp = apply_rk42log_model_tensor(v_init, dr_vec, dp_vec, 
                     mode='f', omega_rot=27.27).to(device)[-1]
-        tmp_ori = apply_rk42log_model_tensor(yr_5days[i, :, 0], dr_vec, dp_vec, 
-                    mode='f', omega_rot=27.27).to(device)[-1]
+        # tmp_ori = apply_rk42log_model_tensor(yr_5days[i, :, 0], dr_vec, dp_vec, 
+        #             mode='f', omega_rot=27.27).to(device)[-1]
+        
+        # st()
+        # tmp[:120] = tmp[:120]+y_gap[i]*vr_std
+        
         # st()
         # print('event_idx: {}'.format(int(event_idx[i])))
         # st()
+        
+        
         if int(event_idx[i]) == 0:
             
             for n in range(500):
-                figname = 'Figs/test/event0_epoch'+str(n)+'.png'
+                figname = 'Figs/test/vr_epoch'+str(n)+'.png'
                 if os.path.exists(figname):
                     continue
                 else:
-                    fig, ax = plt.subplots(figsize=(16, 8))
+                    fig, ax = plt.subplots(2, 1, figsize=(16, 8))
                     # st()
-                    ax.plot(tmp[:150].detach().cpu().numpy(), label='vr_5days_pred')
-                    ax.plot(tmp_ori[:150].detach().cpu().numpy(), label='vr_5days_ori')
-                    ax.plot(yr_5days[i, :150, -1].detach().cpu().numpy(), label='vr_5days')
-                    ax.plot(yr[i, :150, -1].detach().cpu().numpy(), label='vr')
-                    plt.legend()
+                    ax[0].plot(tmp.detach().cpu().numpy(), label='vr_5days_pred')
+                    ax[0].plot(yr_5days[i, :, -1].detach().cpu().numpy(), label='vr_5days')
+                    ax[0].plot(yr[i, :, -1].detach().cpu().numpy(), label='vr')
+                    ax[0].legend()
+
+                    ax[1].plot(v_init.detach().cpu().numpy(), label='v0_5days_pred')
+                    ax[1].plot(yr_5days[i, :, 0].detach().cpu().numpy(), label='v0_5days')
+                    ax[1].plot(yr[i, :, 0].detach().cpu().numpy(), label='v0')
+                    ax[1].legend()
                     
                     fig.savefig(figname)
-                    # st()
                     plt.close()
                     break
+        
         
         if weight_flag:
             # st()
 
             weights = (5+5*torch.tanh((yr_5days[i, :120, -1]-350)/150))
             weights_diff = torch.log((yr[i, :120, -1] - yr_5days[i, :120, -1])**2+1)
-            # RMSE_vr = yr_5days[i, :24, -1] - tmp[:24]
             RMSE_vr = yr_5days[i, :120, -1] - tmp[:120]
-            # RMSE += torch.nanmean((RMSE_vr**2)) 
-            # RMSE += torch.mean(weights**3*(RMSE_vr**2))
-            # st() 
-            # RMSE += torch.nanmean(weights**2.5*(RMSE_vr**2)) 
-            # RMSE += torch.nanmean(weights*(RMSE_vr**2)) 
-            # st()
             
             
             # Fisher Z-Transformation
@@ -1238,20 +1316,26 @@ def V_loss_long(y_pred,
             z = 0.5 * torch.log((1 + r**2) / (1 - r**2))  # Fisher Z-transformation
             
             scale_z = 1/(1+torch.exp(-1*z))
+            # RMSE += torch.mean((RMSE_vr**2))
+            RMSE += torch.mean(weights*(RMSE_vr**2)) * (1 - scale_z)
+            
             # RMSE += torch.mean(weights_diff*weights*(RMSE_vr**2)) * (1 - scale_z) 
             # RMSE += torch.mean(weights_diff**2*weights*(RMSE_vr**2)) * (1 - scale_z) 
             # RMSE_ori += torch.mean((RMSE_vr**2)) 
             
             RMSE_v0 = yr_5days[i, :, 0] - v_init
-            RMSE += torch.nanmean((RMSE_v0**2)) 
+            # RMSE_v0 = yr_5days[i, 80:200, 0] - v_init[80:200]
+            RMSE += torch.nanmean((RMSE_v0**2)) * (1 - scale_z)
+            # RMSE += torch.nanmean((RMSE_v0**2)) * (1 - scale_z)
+            # RMSE += torch.sqrt(torch.nanmean((RMSE_v0**2) * ((yr_5days[i, :, 0] - yr[i, :, 0])**2)))
             
             if torch.isinf(RMSE).any() or torch.isnan(RMSE).any():
                 st()
         else:
-            RMSE_v0 = yr_5days[i, :, 0] - v_init
-            RMSE_vr = yr_5days[i, :120, -1] - tmp[:120]
-            RMSE += torch.nanmean((RMSE_vr**2)) 
-            # RMSE += torch.nanmean((RMSE_v0**2)) 
+            RMSE_v0 = yr_5days[i, 80:200, 0] - v_init[80:200]
+            # RMSE_vr = yr_5days[i, :120, -1] - tmp[:120]
+            # RMSE += torch.nanmean((RMSE_vr**2)) 
+            RMSE += torch.nanmean((RMSE_v0**2)) 
             if torch.isinf(RMSE).any() or torch.isnan(RMSE).any():
                 st()
             # test_fig_plot(event_idx[i].cpu().detach().numpy(), tmp[:120], yr[i, :120, -1], yr_5days[i, :120, -1])
@@ -1841,7 +1925,7 @@ class GONG_Model(lp.LightningModule):
                  mode,
                  IC,
                  optim,
-                 weight_flag,
+                #  weight_flag,
                  ratio
                  ):
 
@@ -1857,9 +1941,10 @@ class GONG_Model(lp.LightningModule):
                   hidden_size=16,
                   num_layers=2,
                   outputs=656,
+                #   outputs=656+120,
                   )
         
-        initialize_weights(self.model)
+        # initialize_weights(self.model)
 
         self.lr = lr
         self.momentum = 0.3
@@ -1870,7 +1955,8 @@ class GONG_Model(lp.LightningModule):
         self.vr_std = vr_std
         self.IC = IC
         self.optim = optim
-        self.weight_flag=weight_flag
+        self.weight_flag=True
+        # self.weight_flag=weight_flag
         self.ratio=ratio
 
     def forward(self, x):
@@ -1977,7 +2063,7 @@ class GONG_Model(lp.LightningModule):
                                                     gamma=0.1)
 
         return {'optimizer': optimizer, 
-                'lr_scheduler': scheduler, 
+                # 'lr_scheduler': scheduler, 
                 'monitor': 'train_loss'}
 
 class dV_Model(lp.LightningModule):
@@ -2502,8 +2588,9 @@ def V_train_filebatch(filename,
         pass
     
     # idx_train_all = np.hstack((idx_train[::10], idx_valid, idx_test))
+    idx_train_all = idx_train
     # idx_train_all = np.hstack((idx_train[:10], idx_valid, idx_test))
-    idx_train_all = np.hstack((idx_train, idx_valid, idx_test))
+    # idx_train_all = np.hstack((idx_train, idx_valid))
     idx_all = np.hstack((idx_train, idx_valid, idx_test))
     # idx_valid = np.hstack((idx_train, idx_valid, idx_test))
     # idx_test = np.hstack((idx_train, idx_valid, idx_test))
@@ -2525,10 +2612,10 @@ def V_train_filebatch(filename,
                         netcdf_Dataset(filename, idx_train_all), 
                         # batch_size=len(idx_train), 
                         batch_size=config['batch'], 
-                        shuffle=True,  # Ensure no shuffling of data
+                        shuffle=False,  # Ensure no shuffling of data
                         num_workers=11)
     val_data = torch.utils.data.DataLoader(
-                        netcdf_Dataset(filename, idx_train_all), 
+                        netcdf_Dataset(filename, idx_valid), 
                         batch_size=config['batch'], 
                         shuffle=False,  # Ensure no shuffling of data
                         # batch_size=len(idx_valid), 
@@ -2536,7 +2623,7 @@ def V_train_filebatch(filename,
     test_data = torch.utils.data.DataLoader(
                         netcdf_Dataset(filename, idx_all), 
                         # GONG_Dataset(X[idx_test], Y[idx_test]), 
-                        batch_size=config['batch'], 
+                        batch_size=config['batch']*100, 
                         shuffle=False,  # Ensure no shuffling of data
                         # batch_size=idx_train.shape[0], 
                         num_workers=11)
@@ -2557,7 +2644,7 @@ def V_train_filebatch(filename,
                        config['mode'],
                        config['IC'],
                        config['Optimize'],
-                       config['weight_flag'],
+                    #    config['weight_flag'],
                        config['ratio'],
                        )
 
@@ -2606,7 +2693,7 @@ def V_train_filebatch(filename,
     # import ipdb;ipdb.set_trace()
     if flag:
         if os.path.exists(V_checkpoint_init):
-            # model = GONG_Model.load_from_checkpoint(V_checkpoint_init)
+            model = GONG_Model.load_from_checkpoint(V_checkpoint_init)
             # model = GONG_Model.load_from_checkpoint(V_checkpoint_init)
             pass
         # st()
@@ -2628,7 +2715,13 @@ def V_train_filebatch(filename,
             X_batch = batch[0].to('cuda')  # Assuming your model is on the 'device' (e.g., 'cuda' or 'cpu')
             preds = best_model(X_batch).cpu()
             # pred_Y_test.append(preds*vr_std*config['ratio']+batch[1][:, :, 0])
-            pred_Y_test.append(np.exp(preds)*batch[1][:, :, 0])
+            # st()
+            v0_pred = preds/3+batch[1][:, :, 0]
+            if len(preds.shape) == 1:
+                v0_pred = v0_pred.unsqueeze(0)
+            v0_pred = torch.cat([v0_pred[:, 20:], v0_pred[:, :20]], axis=1)
+            pred_Y_test.append(v0_pred)
+            # pred_Y_test.append(np.exp(preds)*batch[1][:, :, 0])
             # pred_Y_test.append(preds*batch[1][:, :, 0])
             Y_clu.append(batch[1])
             
@@ -2636,6 +2729,7 @@ def V_train_filebatch(filename,
     # st()
     pred_Y_test = torch.cat(pred_Y_test)
     Y_clu = torch.cat(Y_clu)
+    # Y_clu = Y_clu*vr_std+vr_mean
     return pred_Y_test.detach().numpy(), Y_clu.detach().numpy()
 
 
@@ -2941,11 +3035,18 @@ def v02vr_5days(pred_Y_test,
         dr_vec = r_vector[1:] - r_vector[0:-1]
         v0_5days_test[i] = pred_Y_test[i].squeeze()
 
+        '''
+        vr_5days_test[i] = apply_rk42log_f_model(
+            v0_5days_test[i], 
+            dr_vec, dp_vec
+            )[-1]
+        
+        '''
         vr_5days_test[i] = apply_rk42log_model(
             v0_5days_test[i], 
             dr_vec, dp_vec, 
             mode='f')[-1]
-    
+        
     return vr_5days_test
 
 
