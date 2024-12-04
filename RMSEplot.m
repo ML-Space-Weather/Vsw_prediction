@@ -2,8 +2,8 @@ clear
 clc
 close all
 
-load 'Results/long_MF_5days_10_101000.mat';
-% load '/media/faraday/andong/GONG_NN/long_MF_5days_10_101000.mat';
+% load 'Results/long_MF_5days_10_101000_back.mat';
+load '/media/faraday/andong/GONG_NN/long_MF_5days_WL_10_101000.mat';
 
 % load '../long_MF_5days_10_10100_sigmoid.mat';
 

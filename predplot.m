@@ -2,9 +2,10 @@ clear
 clc
 close all
 
-load 'Results/long_MF_5days_10_101000.mat';
+% load 'Results/long_MF_5days_10_101000_back.mat';
+load '/media/faraday/andong/GONG_NN/long_MF_5days_WL_10_101000.mat';
 
-n = 96;
+n = 120-119;
 % Convert raw Time matrix to datetime format
 Time = datetime(Time(:,1), Time(:,2), Time(:,3), Time(:,4), Time(:,5), 0); % Assuming last column is minutes
 

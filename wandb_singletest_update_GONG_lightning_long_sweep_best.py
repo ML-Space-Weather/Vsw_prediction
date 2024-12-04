@@ -11,7 +11,7 @@ import pandas as pd
 import torch
 import lightning.pytorch as lp
 from wandb_funs_train import * 
-from nets import seed_torch
+# from nets import seed_torch
 
 ################################## configuration #######################
 
@@ -19,8 +19,9 @@ torch.set_float32_matmul_precision('medium')
 torch.multiprocessing.set_sharing_strategy('file_system')
 torch.set_grad_enabled(True) 
 
-os.environ["WANDB_MODE"] = "online"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
+os.environ["WANDB_MODE"] = "offline"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 7"
 
 def run(config):
 
@@ -47,7 +48,8 @@ def run(config):
 
     ######## intermediate data (can be change to other directory) ####################################
     ML_file = '/media/faraday/andong/Dataspace/GONG_NN/Data/long_XY_CNN_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
-    vr_mat = '/media/faraday/andong/Dataspace/GONG_NN/Data/long_rk42log_WL_'+str(int(IC))+'_'+str(N_sample)+'.h5'
+    vr_mat = '/media/faraday/andong/Dataspace/GONG_NN/Data/long_rk42_WL_'+str(int(IC))+'_'+str(N_sample)+'.h5'
+    # vr_mat = '/media/faraday/andong/Dataspace/GONG_NN/Data/long_rk42log_WL_'+str(int(IC))+'_'+str(N_sample)+'.h5'
     save_mat = '/media/faraday/andong/GONG_NN/long_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.mat'
     save_h5 = '/media/faraday/andong/GONG_NN/long_MF_5days_WL_'+str(int(IC))+'_'+str(int(N_sample))+'.h5'
     initfile = "long_best-checkpoint_"+str(IC)+'_init'
@@ -73,11 +75,11 @@ def run(config):
     # st()
     if ((os.path.exists(vr_mat)==0) | (Overwrite)):
 
-        V2logV_long(init_data, 
+        V2V_long(init_data, 
             IC, idx_clu, 
             vr_mat)
     
-    # # st()
+    # st()
     with h5py.File(vr_mat, 'r') as f:
         
         ############## normalized vr_5days  
@@ -149,13 +151,13 @@ def run(config):
     # print('first 10 elements of tmp[100] {}'.format(pred_Y_test[100, :10]))
     # st()
 
-    vr_5days_pred = np.array(Y_sel[:, :, -1])
+    vr_5days_pred = np.array(Y_sel[:, :, -2])
     vr_5days_pred[:, :121] = pred_Y_test[:, :121]
-
-    RMSE_train = np.sqrt(np.nanmean((Y_sel[idx_train, :121, -1] - pred_Y_test[idx_train, :121])**2))
-    RMSE_valid = np.sqrt(np.nanmean((Y_sel[idx_valid, :121, -1] - pred_Y_test[idx_valid, :121])**2))
-    RMSE_test = np.sqrt(np.nanmean((Y_sel[idx_test, :121, -1] - pred_Y_test[idx_test, :121])**2))
-    RMSE_test_per = np.sqrt(np.nanmean((Y_sel[idx_test, :121, -1] - Y_sel[idx_test, :121, 99])**2))
+    
+    RMSE_train = np.sqrt(np.nanmean((Y_sel[idx_train, :121, -2] - pred_Y_test[idx_train, :121])**2))
+    RMSE_valid = np.sqrt(np.nanmean((Y_sel[idx_valid, :121, -2] - pred_Y_test[idx_valid, :121])**2))
+    RMSE_test = np.sqrt(np.nanmean((Y_sel[idx_test, :121, -2] - pred_Y_test[idx_test, :121])**2))
+    RMSE_test_per = np.sqrt(np.nanmean((Y_sel[idx_test, :121, -2] - Y_sel[idx_test, :121, 99])**2))
     print('RMSE of the train set is {}'.format(RMSE_train))
     print('RMSE of the vali set is {}'.format(RMSE_valid))
     print('RMSE of the test set is {}'.format(RMSE_test))
@@ -169,7 +171,7 @@ def run(config):
                       r_end,
                       r_end_5day,
                       Y_sel[:, :, 99],
-                      Y_sel[:, :, -1],
+                      Y_sel[:, :, -2],
                       vr_5days_pred,
                       idx_train,
                       idx_test,
@@ -188,7 +190,7 @@ def run(config):
                  vr_5days_pred[:, :121],
                 #  pred_dY_test[:, :121],
                  Y_sel[:, :, 99],
-                 Y_sel[:, :, -1],
+                 Y_sel[:, :, -2],
                  )
 
 
@@ -196,13 +198,14 @@ def run(config):
 
 
 sweep_config = {
-    'batch': 10,
-    'max_epochs': 30,
-    'lr': 3e-4,
-    'dropout': 0.8,
+    'batch': 50,
+    'max_epochs': 100,
+    'lr': 1e-3,
+    'dropout': 0.0,
     'width': 3,
-    # 'Optimize': 'sgd',
-    'Optimize': 'adam',
+    'Optimize': 'sgd',
+    # 'Optimize': 'lbfgs',
+    # 'Optimize': 'adam',
     # 'Optimize': 'rmsprop',
 
     'thres_up': 900,  # Needs to be a list of values
@@ -211,11 +214,11 @@ sweep_config = {
     'IC': 10,  # Needs to be a list of values
     'N_sample': 101000,  # Needs to be a list of values
     'train_per': 6,  # Needs to be a list of values
-    'dev_num': 8,  # Needs to be a list of values
+    'dev_num': 7,  # Needs to be a list of values
     'ratio': 1.5,  # Needs to be a list of values
     'boost': 3,  # Needs to be a list of values
     'mode': 3,  # Needs to be a list of values
-    'gap': 10,  # Needs to be a list of values
+    'gap': 1000,  # Needs to be a list of values
     'weight_flag': False,  # Needs to be a list of values
     'train_flag': False,  # Needs to be a list of values
     'std_flag': False,  # Needs to be a list of values
